@@ -1,22 +1,86 @@
 from __future__ import print_function
 from urllib import urlencode, urlopen
+import requests
 from flask import Flask, send_from_directory, jsonify
 from flask import Flask, request, redirect, url_for
-from googleapiclient.http import BatchHttpRequest
 from werkzeug import secure_filename
 from apiclient import discovery
-import httplib2
 import os
-import oauth2client
-from oauth2client import client
-from oauth2client import tools
+from sqlalchemy import and_
+import sqlalchemy.exc
 from oauth2client.client import SignedJwtAssertionCredentials
-
+from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy import and_
+import sqlalchemy.exc
 UPLOAD_FOLDER = '/home/gaurav/uploads'
 ALLOWED_EXTENSIONS = set(['txt','doc','docx','ppt','pptx','xls','xlsx', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgres://postgres:gaurav@localhost:5432/teacherkiosk'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+db=SQLAlchemy(app)
+
+class Timetable(db.Model):
+    id=db.Column(db.Integer,autoincrement=True,primary_key=True)
+    day=db.Column(db.String(25))
+    time=db.Column(db.String(20))
+    batch=db.Column(db.String(50))
+    sub=db.Column(db.String(50))
+    fac=db.Column(db.String(50))
+    venue=db.Column(db.String(25))
+    type=db.Column(db.String(20))
+
+    def __init__(self,day,time,batch,sub,fac,venue,type):
+        self.day=day
+        self.time=time
+        self.batch=batch
+        self.sub=sub
+        self.fac=fac
+        self.venue=venue
+        self.type=type
+
+def sendsms(tags):
+    return True
+
+@app.route('/savetimetable')
+def timetable_create():
+    db.create_all()
+    file= open("timetable.txt","r")
+    for line in file:
+        line=line.split("   ")
+        print (line[0],line[6])
+        cl=Timetable(line[0],line[1],line[2],line[3],line[4],line[5],line[6])
+        db.session.add(cl)
+        db.session.commit()
+    return jsonify(success="Time table successfully created")
+
+@app.route('/timetable/<fac_code>')
+def showtimetable(fac_code):
+    try:
+        fac_code=str(fac_code)
+        sql="SELECT * FROM timetable WHERE fac='"+fac_code+"'"
+        print (sql)
+        res=db.engine.execute(sql)
+        if res is not None:
+            print(res.keys())
+            js={}
+            jslist=[]
+            for r in res:
+                print ("k")
+                js['day']=r['day']
+                js['time']=r.time
+                js['batch']=r.batch
+                js['sub']=r.sub
+                js['venue']=r.venue
+                js['type']=r.type
+                print ("blk")
+                jslist.append(js.copy())
+            return jsonify(success=jslist),200
+        else:
+            return jsonify(error="Invalid Code"),500
+    except Exception as e:
+        print (str(e))
+        return jsonify(error="Exception block"),500
 
 
 def allowed_file(filename):
@@ -41,6 +105,34 @@ def list_folder():
     param['q'] = "'root' in parents"
     results = service.files().list(**param).execute()
     return jsonify(results=results)
+
+
+@app.route('/notify')
+def sendnotification():
+    headers={}
+    data={}
+    par=request.get_json(force=True)
+    try:
+        if par['authtoken']=="gauraviscool":
+            data['platform']=par[1]
+            data['msg']=par['msg']
+            data['tags']=par['tags']
+            if 'payload' in par:
+                data['payload']=par['payload']
+                headers['x-pushbots-appid']="564e3f56177959ce468b4569"
+                headers['x-pushbots-secret']="bafdd9608dab716baabad599cc6c477e"
+                headers['Content-Type']="application/json"
+                r=requests.post("https://api.pushbots.com/push/all",headers=headers)
+                sendsms(data['tags'])
+                if r.status_code==200:
+                    return jsonify(success="Notification Pushed"),200
+            else:
+                return jsonify(error=r.content),r.status_code
+        else:
+            return jsonify(error="Not Authorised"),403
+    except Exception as e:
+        print(str(e))
+        return jsonify(error="Something's fishy"),500
 
 
 @app.route('/upload',methods=['GET','POST'])
