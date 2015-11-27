@@ -48,8 +48,14 @@ def timetable_create():
     file= open("timetable.txt","r")
     for line in file:
         line=line.split("   ")
-        print (line[0],line[6])
-        cl=Timetable(line[0],line[1],line[2],line[3],line[4],line[5],line[6])
+        line[1]=line[1].strip()
+        if "PM" in line[1]:
+            line[1]=line[1][:-2]
+            line[1]=str(int(line[1])+12)
+        else:
+            line[1]=line[1][:-2]
+        # print (line)
+        cl=Timetable(line[0].strip(),line[1],line[2].strip(),line[3].strip(),line[4].strip(),line[5].strip(),line[6].strip())
         db.session.add(cl)
         db.session.commit()
     return jsonify(success="Time table successfully created")
@@ -202,4 +208,4 @@ def sms():
     return response.read()
 
 if __name__ == '__main__':
-    app.run(port=4500)
+    app.run(debug=True,port=4500)
