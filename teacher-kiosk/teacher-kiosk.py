@@ -44,21 +44,24 @@ def sendsms(tags):
 
 @app.route('/savetimetable')
 def timetable_create():
-    db.create_all()
-    file= open("timetable.txt","r")
-    for line in file:
-        line=line.split("   ")
-        line[1]=line[1].strip()
-        if "PM" in line[1]:
-            line[1]=line[1][:-2]
-            line[1]=str(int(line[1])+12)
-        else:
-            line[1]=line[1][:-2]
-        # print (line)
-        cl=Timetable(line[0].strip(),line[1],line[2].strip(),line[3].strip(),line[4].strip(),line[5].strip(),line[6].strip())
-        db.session.add(cl)
-        db.session.commit()
-    return jsonify(success="Time table successfully created")
+    try:
+        db.create_all()
+        file= open("timetable.txt","r")
+        for line in file:
+            line=line.split("   ")
+            line[1]=line[1].strip()
+            if "PM" in line[1]:
+                line[1]=line[1][:-2]
+                line[1]=str(int(line[1])+12)
+            else:
+                line[1]=line[1][:-2]
+            # print (line)
+            cl=Timetable(line[0].strip(),line[1],line[2].strip(),line[3].strip(),line[4].strip(),line[5].strip(),line[6].strip())
+            db.session.add(cl)
+            db.session.commit()
+        return jsonify(success="Time table successfully created"),200
+    except Exception as e:
+        return jsonify(error=str(e)),500
 
 @app.route('/timetable/<fac_code>')
 def showtimetable(fac_code):
